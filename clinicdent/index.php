@@ -13,22 +13,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $treatment_desc = $_POST['treatment_desc'] ?? [];
     $treatment_qty  = $_POST['treatment_qty'] ?? [];
     $treatment_price = $_POST['treatment_price'] ?? [];
+    $remaining_amount = $_POST['remaining_amount'] ?? [];
+    $paid = $_POST['paid'] ?? [];
 
     // build a simple array of treatments
     $treatments = [];
     $total = 0.0;
+    $total_paid = 0.0;
+    $remaining_money = 0.0;
     for ($i=0;$i<count($treatment_desc);$i++){
         $desc = trim($treatment_desc[$i]);
         if ($desc === '') continue;
+        
         $qty = (float)($treatment_qty[$i] ?? 1);
         $price = (float)($treatment_price[$i] ?? 0);
+        $paid_money = (float)($paid[$i] ?? 0);
+
         $line_total = $qty * $price;
+        $line_remaining = $line_total - $paid_money;
+
         $total += $line_total;
+        $total_paid +=$paid_money;
+        $remaining_money += $line_remaining; 
+
         $treatments[] = [
             'desc'=>$desc,
             'qty'=>$qty,
             'price'=>$price,
-            'line_total'=>$line_total
+            'line_total'=>$line_total,
+            'paid_money'=>$paid_money,
+            'line_remaining'=>$line_remaining
         ];
     }
 
@@ -112,21 +126,32 @@ $rows = $conn->query("SELECT * FROM patients ORDER BY created_at DESC LIMIT 200"
             <table class="table table-sm table-bordered treatment-table">
               <thead class="table-light">
                 <tr>
-                  <th style="width:55%">وصف العلاج</th>
+                  <th style="width:40%">وصف العلاج</th>
                   <th style="width:10%">الكمية</th>
-                  <th style="width:15%">سعر الوحدة</th>
-                  <th style="width:15%">المجموع</th>
-                  <th style="width:5%"></th>
+                  <th style="width:10%">سعر الوحدة</th>
+                  <th style="width:10%">المجموع</th>
+                  <th style="width:10%">المدفوع</th>
+                  <th style="width:10%">المتبقي</th>
+                  <th style="width:5%">حذف</th>
                 </tr>
               </thead>
               <tbody id="treatmentBody">
                 <!-- سطر افتراضي -->
-                <tr>
+                <tr id = "treatmentRow">
                   <td><input name="treatment_desc[]" class="form-control" placeholder="مثال: حشوة ضوءي"></td>
-                  <td><input name="treatment_qty[]" class="form-control" value="1" oninput="updateTotals()"></td>
-                  <td><input name="treatment_price[]" class="form-control" oninput="updateTotals()" value="0"></td>
+                  <td><input name="treatment_qty[]" inputmode = "numeric" class="form-control" placeholder="1" maxlength = "2" oninput="this.value = this.value.replace(/[^0-9]/g, ''); updateTotals()"></td>
+                  <td><input name="treatment_price[]" inputmode = "numeric" class="form-control" maxlength = "5" oninput="this.value = this.value.replace(/[^0-9]/g, ''); updateTotals()" placeholder="0"></td>
                   <td class="line_total">0.00</td>
+                  <td><input name="paid[]" inputmode = "numeric" class="form-control" maxlength = "5" oninput="this.value = this.value.replace(/[^0-9]/g, ''); updateTotals()" placeholder="0"></td>
+                  <!-- <td class="line_total">0.00</td> -->
+                  <td class="line_remaining">0.00</td>
                   <td><button type="button" class="btn btn-sm btn-danger" onclick="removeRow(this)">×</button></td>
+                </tr>
+                <tr id = "summaryRow" class="table-secondary fw-bold">
+                  <td colspan="3" class="text-end">Total</td>
+                  <td><strong>Total : </strong> <span id="grandTotal">0.00</span> EGP</td>
+                  <td><strong>Paid : </strong> <span id="totalPaid">0.00</span> EGP</td>
+                  <td><strong>Remaining : </strong> <span id="totalRemaining">0.00</span> EGP</td>
                 </tr>
               </tbody>
             </table>
@@ -134,9 +159,6 @@ $rows = $conn->query("SELECT * FROM patients ORDER BY created_at DESC LIMIT 200"
               <div>
                 <button type="button" class="btn btn-sm btn-success" onclick="addRow()">إضافة سطر</button>
                 <button type="button" class="btn btn-sm btn-secondary" onclick="clearRows()">تفريغ</button>
-              </div>
-              <div class="text-end">
-                <strong>الإجمالي: </strong> <span id="grandTotal">0.00</span> ج.م
               </div>
             </div>
           </div>
@@ -148,10 +170,20 @@ $rows = $conn->query("SELECT * FROM patients ORDER BY created_at DESC LIMIT 200"
       </form>
     </div>
   </div>
-
+  <div class = "d-flex justify-content-between align-items-center">
+    <!-- صفحة المتبقي للعيادة  -->
+    <div class = "text-center">
+      <a href="remaining.php" class = "btn btn-danger fw-bold btn-lg mt-3 mb-2 mx-5">  المتبقي للعيادة</a>
+    </div>
+    <!-- صفحة المتبقي للعميل  -->
+    <div class = "text-center">
+      <a href="remainingToClient.php" class = "btn btn-warning fw-bold btn-lg mt-3 mb-2 mx-5">  المتبقي للعميل</a>
+    </div>
+  </div>
   <!-- قائمة الحالات -->
   <div class="card mt-3 shadow-sm">
     <div class="card-header">قائمة الحالات المسجلة</div>
+    
     <div class="card-body p-0">
       <div class="table-responsive">
         <div class = "p-3">
@@ -160,17 +192,50 @@ $rows = $conn->query("SELECT * FROM patients ORDER BY created_at DESC LIMIT 200"
         <table class="table table-striped mb-0">
           <thead>
             <tr>
-              <th>code</th><th>الاسم</th><th>التشخيص</th><th>التاريخ</th><th>الإجمالي</th><th>ملاحظات</th><th>حذف</th><th>تعديل</th>
+              <th>code</th>
+              <th>الاسم</th>
+              <th>التشخيص</th>
+              <th>التاريخ</th>
+              <th>الإجمالي</th>
+              <th>المدفوع</th>
+              <th>المتبقي</th>
+              <th>ملاحظات</th>
+              <th>حذف</th>
+              <th>تعديل</th>
             </tr>
           </thead>
           <tbody>
             <?php foreach($rows as $r): ?>
+              <?php $plan = json_decode($r['treatment_plan'], true) ?? [];
+
+              $paid_total = 0;
+              $remaining_total = 0;
+
+              foreach($plan as $p){
+                $paid_total += (float)($p['paid_money'] ?? 0);
+                $remaining_total += (float)($p['line_remaining'] ?? 0);
+              }
+              ?>
             <tr data-id="<?= $r['id']?>">
               <td><?=htmlspecialchars($r['code'])?></td>
               <td><?=htmlspecialchars($r['name'])?></td>
               <td style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><?=htmlspecialchars($r['diagnosis'])?></td>
               <td><?=htmlspecialchars($r['date_visit'])?></td>
-              <td><?=number_format((float)$r['cost_total'],2)?></td>
+              
+
+              <!-- Total -->
+              <td><?= number_format($r['cost_total'], 2)?></td>
+              
+              <!-- PAID -->
+              <td class = "text-success fw-bold">
+                <?= number_format($paid_total, 2)?>
+              </td>
+              
+              <!-- REMAINING -->
+              <td class = "text-danger fw-bold <?= $remaining_total > 0 ? 'danger-text' : 'text-success'?>">
+                <?= number_format($remaining_total, 2)?>
+              </td>
+              
               <td>
                 <button class="btn btn-sm btn-outline-primary" onclick='showDetails(<?=json_encode($r)?>)'>عرض</button>
               </td>
@@ -185,7 +250,7 @@ $rows = $conn->query("SELECT * FROM patients ORDER BY created_at DESC LIMIT 200"
                   <button type="button" class="btn btn-sm btn-outline-info" onclick="editRow(this)">Edit</button>
                 </form>
               </td>
-              <td></td>
+              
             </tr>
             <?php endforeach; ?>
             <?php if(count($rows)===0): ?>
@@ -234,13 +299,18 @@ $rows = $conn->query("SELECT * FROM patients ORDER BY created_at DESC LIMIT 200"
 <script>
 function addRow(){
   const tbody = document.getElementById('treatmentBody');
+  const summaryRow = document.getElementById('summaryRow');
+
   const tr = document.createElement('tr');
   tr.innerHTML = `<td><input name="treatment_desc[]" class="form-control" placeholder="مثل: حشوة"></td>
                   <td><input name="treatment_qty[]" class="form-control" value="1" oninput="updateTotals()"></td>
                   <td><input name="treatment_price[]" class="form-control" value="0" oninput="updateTotals()"></td>
                   <td class="line_total">0.00</td>
+                  <td><input name="paid[]" class="form-control" value="0" oninput="updateTotals()"></td>
+                  <td class="line_remaining">0.00</td>
                   <td><button type="button" class="btn btn-sm btn-danger" onclick="removeRow(this)">×</button></td>`;
-  tbody.appendChild(tr);
+  // tbody.appendChild(tr);
+  tbody.insertBefore(tr, summaryRow);
 }
 
 function removeRow(btn){
@@ -257,17 +327,37 @@ function clearRows(){
 }
 
 function updateTotals(){
-  let grand = 0;
-  document.querySelectorAll('#treatmentBody tr').forEach(tr=>{
+  let grandTotal = 0;
+  let totalPaid = 0;
+  let totalRemaining = 0;
+  
+  document.querySelectorAll('#treatmentBody tr:not(#summaryRow)').forEach(tr=>{
     const qty = parseFloat((tr.querySelector('input[name="treatment_qty[]"]')||{value:0}).value) || 0;
     const price = parseFloat((tr.querySelector('input[name="treatment_price[]"]')||{value:0}).value) || 0;
-    const line = qty * price;
-    const cell = tr.querySelector('.line_total');
-    if(cell) cell.innerText = line.toFixed(2);
-    grand += line;
+    const paid = parseFloat((tr.querySelector('input[name="paid[]"]')||{value:0}).value) || 0;
+    
+    const lineTotal = qty * price;
+    const remaining = Math.max(lineTotal - paid);
+    
+    tr.querySelector('.line_total').innerText = lineTotal.toFixed(2);
+    tr.querySelector('.line_remaining').innerText = remaining.toFixed(2);
+    // if(cell) cell.innerText = line.toFixed(2);
+    grandTotal += lineTotal;
+    totalPaid += paid;
+    totalRemaining += remaining;
   });
-  document.getElementById('grandTotal').innerText = grand.toFixed(2);
+  document.getElementById('grandTotal').innerText = grandTotal.toFixed(2);
+  document.getElementById('totalPaid').innerText = totalPaid.toFixed(2);
+  document.getElementById('totalRemaining').innerText = totalRemaining.toFixed(2);
 }
+// function updatePaid(){
+//   let paying = 0;
+//   document.querySelector('#paid').forEach(paid=>{
+//     const cell_paid = paid.querySelector('#paid');
+//     if(cell_paid) cell_paid.innerText = line.toFixed(2);
+//     paying += cell_paid;
+//   })
+// }
 
 // init
 updateTotals();
@@ -280,19 +370,84 @@ function showDetails(row){
               <p><strong>التاريخ:</strong> ${escapeHtml(row.date_visit)}</p>
               <p><strong>العمر:</strong> ${escapeHtml(row.age)}</p>
               <p><strong>الإجمالي:</strong> ${Number(row.cost_total).toFixed(2)} ج.م</p>`;
+  let grandTotal = 0;
+  let totalPaid = 0;
+  let totalRemaining = 0;
   try {
     const plan = JSON.parse(row.treatment_plan || '[]');
     if(plan.length){
-      html += `<h6>خطة العلاج</h6><ul>`;
+      html += `
+      <table class = "table table-sm table-bordered">
+        <thead class = table-light>
+          <tr>
+              <th>العلاج</th>
+              <th>الكمية</th>
+              <th>السعر</th>
+              <th>الإجمالي</th>
+              <th>المدفوع</th>
+              <th>المتبقي</th>
+          </tr>
+        <tbody>
+      `;
       plan.forEach(p => {
-        html += `<li>${escapeHtml(p.desc)} — ${p.qty} × ${p.price} = ${Number(p.line_total).toFixed(2)}</li>`;
+        grandTotal += Number(p.line_total) || 0;
+        totalPaid += Number(p.paid_money) || 0;
+        totalRemaining += Number(p.line_remaining) || 0;
+
+        html += `
+        <tr>
+          <td>${escapeHTML(p.desc)}</td>
+          <td>${(p.qty)}</td>
+          <td>${Number(p.price).toFixed(2)}</td>
+          <td>${Number(p.line_total).toFixed(2)}</td>
+          <td>
+            <input type = "number"
+            class = "form-control form-control-sm paid-input"
+            value = "${Number(p.paid_money).toFixed(2)}"
+            oninput = "recalculateModalTotals(this)">
+          </td>
+          <td>${Number(p.line_remaining).toFixed(2)}</td>
+        </tr>  
+        `;
       });
-      html += `</ul>`;
+      html += `
+        </tbody>
+      </table>
+
+        <div class="text-end fw-bold">
+          <p>Total: <span id = "modalGrandTotal">0.00</span> EGP</p>
+          <p>المدفوع: <span id = "modalTotalPaid">0.00</span> EGP</p>
+          <p>المتبقي: <span id = "modalTotalRemaining">0.00</span> EGP</p>
+        </div>
+      `;
     }
+    
   } catch(e){}
   modalBody.innerHTML = html;
-  var modal = new bootstrap.Modal(document.getElementById('detailModal'));
+  const modal = new bootstrap.Modal(document.getElementById('detailModal'));
   modal.show();
+}
+
+function recalculateModalTotals(input){
+    const tr = input.closest("tr");
+
+    const lineTotal = parseFloat(tr.children[3].innerText) || 0;
+    const paid = parseFloat(input.value) || 0;
+    const remaining = lineTotal - paid;
+
+    tr.children[5].innerText = remaining.toFixed(2);
+
+    let totalPaid = 0;
+    let totalRemaining = 0;
+
+    document.querySelector(".paid-input").forEach(inp=>{
+        totalPaid += parseFloat(inp.value) || 0;
+        const row = inp.closest("tr");
+        totalRemaining += parseFloat(row.children[5].innerText) || 0;
+    });
+
+    document.getElementById("modalTotalPaid").innerText = totalPaid.toFixed(2);
+    document.getElementById("modalTotalRemaining").innerText = totalRemaining.toFixed(2);
 }
 
 function escapeHtml(unsafe){
