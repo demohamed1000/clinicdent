@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $total_paid = 0.0;
     $remaining_money = 0.0;
     for ($i=0;$i<count($treatment_desc);$i++){
-        $desc = trim($treatment_desc[$i]);
+      $desc = trim($treatment_desc[$i]);
         if ($desc === '') continue;
         
         $qty = (float)($treatment_qty[$i] ?? 1);
@@ -35,21 +35,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $total += $line_total;
         $total_paid +=$paid_money;
         $remaining_money += $line_remaining; 
-
+        
         $treatments[] = [
-            'desc'=>$desc,
-            'qty'=>$qty,
-            'price'=>$price,
-            'line_total'=>$line_total,
-            'paid_money'=>$paid_money,
-            'line_remaining'=>$line_remaining
-        ];
-    }
-
+          'desc'=>$desc,
+          'qty'=>$qty,
+          'price'=>$price,
+          'line_total'=>$line_total,
+          'paid_money'=>$paid_money,
+          'line_remaining'=>$line_remaining
+          ];
+          }
+  // DECIDES WHO OWES WHOM
+  $remaining_to_clinic = 0.0;
+  $remaining_to_patient = 0.0;
+  if($remaining_money > 0){
+    $remaining_to_clinic = $remaining_money;
+  }elseif($remaining_money < 0){
+    $remaining_to_patient = $remaining_money;
+  }          
     $treatment_json = json_encode($treatments, JSON_UNESCAPED_UNICODE);
 
-    $stmt = $conn->prepare("INSERT INTO patients (code, name, diagnosis, date_visit, age, medical_history, treatment_plan, cost_total) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->execute([$code,$name, $diagnosis, $date_visit, $age, $medical_history, $treatment_json, $total]);
+    $stmt = $conn->prepare("INSERT INTO patients (code, name, diagnosis, date_visit, age, medical_history, treatment_plan,
+    cost_total, total_paid, remaining_to_clinic, remaining_to_patient) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ? , ?, ?)");
+    $stmt->execute([$code,$name, $diagnosis, $date_visit, $age, $medical_history, 
+    $treatment_json, $total, $total_paid, $remaining_to_clinic, $remaining_to_patient]);
 
     header("Location: ".$_SERVER['PHP_SELF']);
     exit;
@@ -83,7 +92,7 @@ $rows = $conn->query("SELECT * FROM patients ORDER BY created_at DESC LIMIT 200"
   <div class="card shadow-sm">
     <div class="card-header d-flex justify-content-between align-items-center">
       <h5 class="mb-0">Dental Clinical Case</h5>
-      <small>د. مصطفى الحسيني</small>
+      <small>DR. MOHAMED MAHMOUD</small>
     </div>
     <div class="card-body clinic-form">
       <form method="POST" id="patientForm">
@@ -102,7 +111,8 @@ $rows = $conn->query("SELECT * FROM patients ORDER BY created_at DESC LIMIT 200"
           </div>
           <div class="col-md-6">
             <label>code</label>
-            <input name="code" type = "number" step = "1" oninput = "validateCode(this)" class="form-control">
+            <input name="code" id = "codeInput"type = "number" step = "1" oninput = "validateCode(this)" class="form-control">
+            <small id = "codeStatus" class = "fw-bold"></small>
           </div>
           <div class="textarea-container">
             <label class ="history_label">التشخيص</label>
@@ -199,9 +209,9 @@ $rows = $conn->query("SELECT * FROM patients ORDER BY created_at DESC LIMIT 200"
               <th>الإجمالي</th>
               <th>المدفوع</th>
               <th>المتبقي</th>
-              <th>ملاحظات</th>
+              <!-- <th>ملاحظات</th> -->
               <th>حذف</th>
-              <th>تعديل</th>
+              <!-- <th>تعديل</th> -->
             </tr>
           </thead>
           <tbody>
@@ -217,8 +227,12 @@ $rows = $conn->query("SELECT * FROM patients ORDER BY created_at DESC LIMIT 200"
               }
               ?>
             <tr data-id="<?= $r['id']?>">
-              <td><?=htmlspecialchars($r['code'])?></td>
-              <td><?=htmlspecialchars($r['name'])?></td>
+              <td>
+                <a href = "patient.php?id=<?=$r['id'] ?>" class = "fw-bold text-decoration-none">
+                  <?=htmlspecialchars($r['code'])?>
+                </a>
+              </td>
+              <td class = "fw-bold"><?=htmlspecialchars($r['name'])?></td>
               <td style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><?=htmlspecialchars($r['diagnosis'])?></td>
               <td><?=htmlspecialchars($r['date_visit'])?></td>
               
@@ -237,18 +251,9 @@ $rows = $conn->query("SELECT * FROM patients ORDER BY created_at DESC LIMIT 200"
               </td>
               
               <td>
-                <button class="btn btn-sm btn-outline-primary" onclick='showDetails(<?=json_encode($r)?>)'>عرض</button>
-              </td>
-              <td>
                   <button class="btn btn-sm btn-danger" onclick = "confirmDelete(<?= $r['id'] ?>, this)">
                     ×
                   </button>
-              </td>
-              <td>
-                <form method = "POST" onsubmit = "return confirm('Edit this patient?');">
-                  <input type = "hidden" name = "edit_id" value = "<?php echo $r['id'];?>">
-                  <button type="button" class="btn btn-sm btn-outline-info" onclick="editRow(this)">Edit</button>
-                </form>
               </td>
               
             </tr>
@@ -440,7 +445,7 @@ function recalculateModalTotals(input){
     let totalPaid = 0;
     let totalRemaining = 0;
 
-    document.querySelector(".paid-input").forEach(inp=>{
+    document.querySelectorAll(".paid-input").forEach(inp=>{
         totalPaid += parseFloat(inp.value) || 0;
         const row = inp.closest("tr");
         totalRemaining += parseFloat(row.children[5].innerText) || 0;
