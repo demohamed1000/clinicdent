@@ -63,13 +63,17 @@ ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
                             $found = true;
                         ?>
                         <tr id = "row-<?= $p['id']?>" data-id = "<?= $p['id']?>">
-                            <td><?= htmlspecialchars($p['code'])?></td>
+                            <td>
+                                <a href="patient.php?id=<?= $p['id']?>" class = "fw-bold text-decoration-none">
+                                    <?= htmlspecialchars($p['code'])?>
+                                </a>
+                            </td>
                             <td><?= htmlspecialchars($p['name'])?></td>
                             <td><?= htmlspecialchars($p['diagnosis'])?></td>
                             <td><?= htmlspecialchars($p['date_visit'])?></td>
                             <td><?= number_format($p['cost_total'],2)?></td>
-                            <td class = "text-success fw-bold"><?= number_format($paid,2)?></td>
-                            <td class = "text-danger fw-bold"><?= number_format($remaining,2)?></td>
+                            <td class = "paid text-success fw-bold"><?= number_format($paid,2)?></td>
+                            <td class = "remaining text-danger fw-bold"><?= number_format($remaining,2)?></td>
                             
                             <td>
                                 <form method = "POST" onsubmit = "return confirm('Edit this patient?');">
@@ -79,7 +83,7 @@ ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
                             </td>
                             <td>
                                 <form method = "POST">
-                                    <input type="hidden" name = "edit_payment" value = "<?= $p['id'];?>">
+                                    
                                     <button type = "button" class = "btn btn-sm btn-success" 
                                     onclick="openPaymentModal(<?= $p['id']?>)">Pay</button>
                                 </form>
@@ -98,11 +102,11 @@ ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
             </div>
         </div>
     </div>
-        <!-- PAYMENT MODAL -->
+    <!-- PAYMENT MODAL -->
     <div class = "modal fade" id ="paymentModal" tabindex = "-1">
         <div class = "modal-dialog">
             <div class = "modal-content">
-                <div class = "modal-header">
+                <div class = "modal-header d-flex justify-content-between" dir = "ltr">
                     <h5 class ="modal-title">Pay/Refund</h5>
                     <button type = "button" class = "btn-close" data-bs-dismiss = "modal"></button>
                 </div>
@@ -121,6 +125,7 @@ ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
             </div>
         </div>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
 
         // PAYMENT MODAL TO CLIENT
@@ -157,15 +162,20 @@ ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
                     document.getElementById('payMsg').innerText = data.message;
                     return;
                 }
-                // remove row instantly if remaining >= 0
-                if(data.remaining = 0){
+                const row = document.getElementById("row-" + id);
+                
+                // Update values in table
+                row.querySelector('.paid').innerText = data.paid.toFixed(2);
+                row.querySelector('.remaining').innerText = data.remaining.toFixed(2);
+
+                // remove row instantly if remaining = 0
+                if(data.remaining <= 0){
                     document.getElementById('row-'+id).remove();
                 }
                 paymentModal.hide();
             });
         }
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="assets/dental.js"></script>
 </body>
 </html>
