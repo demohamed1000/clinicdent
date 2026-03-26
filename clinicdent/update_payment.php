@@ -6,29 +6,52 @@ $data = json_decode(file_get_contents("php://input"),true);
 $id = (int)$data['id'];
 $amount = (float)$data['amount'];
 
+// GET FROM PATIENTS
 $stmt = $conn->prepare('SELECT treatment_plan FROM patients WHERE id = ?');
 $stmt->execute([$id]);
+// $patientPlan = $stmt->fetchColumn();
+$patientPlan = json_decode($stmt->fetchColumn(),true) ?? [];
 
-$plan = json_decode($stmt->fetchColumn(),true) ?? [];
+// GET FROM PAYMENTS
+$pay = $conn->prepare('SELECT id, patient_id, amount FROM payments WHERE id = ?');
+$pay->execute([$id]);
+$paymentPlan = $pay->fetchAll(PDO::FETCH_ASSOC);
 
-$remaining = 0;
 
+$remainingAmount = $amount;
 // Apply payment to negative remaining lines
-foreach($plan as &$row){
-    if(($row['line_remaining'] ?? 0) < 0){
-        $row['line_remaining'] += $amount;
+foreach($patientPlan as &$row){
+    $lineRemaining = (float)($row['line_remaining'] ?? 0);
+    if($remainingAmount <= 0){
         break;
-    }elseif(($row['line_remaining'] ?? 0) > 0){
-        $row['paid_money'] += $amount;
-        $row['line_remaining'] -= $amount;
-        break;
+        }
+    if($lineRemaining <= 0){
+        continue;
     }
+
+    $payNow = min($lineRemaining, $remainingAmount);
+    $row['paid_money'] += $payNow;
+    $row['line_remaining'] -= $payNow;
+
+    $remainingAmount -= $payNow;
+            
 }
+unset($row);
+if($remainingAmount > 0 && !empty($patientPlan)){
+    $lastIndex = count($patientPlan) - 1;
+    // $row['paid_money'] += $remainingAmount;
+    // $row['line_remaining'] -=$remainingAmount;
+    $patientPlan[$lastIndex]['paid_money'] += $remainingAmount;
+    $patientPlan[$lastIndex]['line_remaining'] -= $remainingAmount;
+}
+
+
+
 // Recalculate remaining
 $total_paid = 0;
 $remaining_money = 0;
 
-foreach($plan as $row){
+foreach($patientPlan as $row){
     $total_paid += (float)($row['paid_money'] ?? 0);
     $remaining_money += (float)($row['line_remaining'] ?? 0);
 }
@@ -45,19 +68,22 @@ total_paid = ?,
 remaining_to_clinic = ?,
 remaining_to_patient = ?
 WHERE id = ?');
-$stmt->execute([json_encode($plan, JSON_UNESCAPED_UNICODE),
+$stmt->execute([json_encode($patientPlan, JSON_UNESCAPED_UNICODE),
 $total_paid,
 $remaining_to_clinic,
 $remaining_to_patient,
 $id]);
 
-$stmt = $conn->prepare("INSERT INTO payments (patient_id, amount) VALUES (?,?)");
-$stmt->execute([$id, $amount]);
+$stmt = $conn->prepare("INSERT INTO payments (patient_id, amount, type) VALUES (?,?,?)");
+$stmt->execute([$id, $amount, 'in']);
+
+$payment_id = $conn->lastInsertId();
 
 echo json_encode([
     'success' => true,
     'amount' => $amount,
     'created_at' => date('Y-m-d H:i:s'),
+    'payment_id' => $payment_id,
     'paid' => round($total_paid, 2),
     'remaining' => round($remaining_money, 2)
 ]);
