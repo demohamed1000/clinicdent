@@ -18,7 +18,7 @@ treatment_plan FROM patients ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASS
 <body class = "bg-light">
     <div class = "container py-4">
         <div class = "d-flex justify-content-between align-items-center mb-3">
-            <h4 class = "fw-bold text-warning">المرضي الذين لهم فلوس</h4>
+            <h4 class = "fw-bold text-warning">المرضي المتبقي لهم فلوس</h4>
             <a href="index.php" class = "btn btn-secondary btn-sm">BACK</a>
         </div>
         <div class = "card body p-0">
@@ -57,13 +57,17 @@ treatment_plan FROM patients ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASS
                             $found = true;
                         ?>
                         <tr id = "row-<?= $p['id']?>" data-id = "<?= $p['id']?>">
-                            <td><?=htmlspecialchars($p['code'])?></td>
+                            <td>
+                                <a href = "patient.php?id=<?=$p['id']?>" class = "fw-bold text-decoration-none">
+                                    <?=htmlspecialchars($p['code'])?>
+                                </a>
+                            </td>
                             <td><?=htmlspecialchars($p['name'])?></td>
                             <td><?=htmlspecialchars($p['diagnosis'])?></td>
                             <td><?=htmlspecialchars($p['date_visit'])?></td>
                             <td><?=number_format($p['cost_total'])?></td>
-                            <td class = "text-success fw-bold"><?=number_format($paid,2)?></td>
-                            <td class = "text-warning fw-bold"><?=number_format($remaining,2)?></td>
+                            <td class = "paid text-success fw-bold"><?=number_format($paid,2)?></td>
+                            <td class = "remaining text-warning fw-bold"><?=number_format($remaining,2)?></td>
                             <td>
                                 <form method = "POST" onsubmit = "return confirm('Edit This Patient?');">
                                     <input type="hidden" name = "edit_id" value = "<?= $p['id'];?>">
@@ -72,7 +76,7 @@ treatment_plan FROM patients ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASS
                             </td>
                             <td>
                                 <form method = "POST">
-                                    <input type="hidden" name = "edit_payment" value = "<?= $p['id'];?>">
+                                    
                                     <button type = "button" class = "btn btn-sm btn-success" 
                                     onclick="openPaymentModal(<?= $p['id']?>)">Pay</button>
                                 </form>
@@ -148,6 +152,12 @@ treatment_plan FROM patients ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASS
                     document.getElementById('payMsg').innerText = data.message;
                     return;
                 }
+                const row = document.getElementById("row-" + id);
+                
+                // Update values in table
+                row.querySelector('.paid').innerText = data.paid.toFixed(2);
+                row.querySelector('.remaining').innerText = data.remaining.toFixed(2);
+
                 // remove row instantly if remaining >= 0
                 if(data.remaining>=0){
                     document.getElementById('row-'+id).remove();
