@@ -122,7 +122,7 @@ $rows = $conn->query("SELECT * FROM patients ORDER BY created_at DESC LIMIT 200"
         
         <div class="textarea-container">
           <label class="form-label">Medical History</label>
-          <textarea name="medical_history" maxlength = "200" class="form-control countable" rows="3"></textarea>
+          <textarea name="medical_history" maxlength = "200" class="form-control countable" rows="3">Medically Compromised Free</textarea>
           <div class="counter"></div>
           </div>
 
@@ -148,7 +148,20 @@ $rows = $conn->query("SELECT * FROM patients ORDER BY created_at DESC LIMIT 200"
               <tbody id="treatmentBody">
                 <!-- سطر افتراضي -->
                 <tr id = "treatmentRow">
-                  <td><input name="treatment_desc[]" class="form-control" placeholder="مثال: حشوة ضوءي"></td>
+                  <td>
+                    <select name="treatment_desc[]" class="form-select" placeholder="مثال: حشوة ضوءي">
+                      <option selected disabled>Choose Treatment</option>
+                      <option>Clinical Examination</option>
+                      <option>Endo</option>
+                      <option>Composite</option>
+                      <option>Amalgam</option>
+                      <option>Pulpotomy</option>
+                      <option>Pulpectomy</option>
+                      <option>Extraction</option>
+                      <option>Pedo Extraction</option>
+                      <option>Crown & Bridge</option>
+                    </select>
+                  </td>
                   <td><input name="treatment_qty[]" inputmode = "numeric" class="form-control" placeholder="1" maxlength = "2" oninput="this.value = this.value.replace(/[^0-9]/g, ''); updateTotals()"></td>
                   <td><input name="treatment_price[]" inputmode = "numeric" class="form-control" maxlength = "5" oninput="this.value = this.value.replace(/[^0-9]/g, ''); updateTotals()" placeholder="0"></td>
                   <td class="line_total">0.00</td>
@@ -167,14 +180,11 @@ $rows = $conn->query("SELECT * FROM patients ORDER BY created_at DESC LIMIT 200"
             </table>
             <div class="d-flex justify-content-between align-items-center">
               <div>
-                <button type="button" class="btn btn-sm btn-success" onclick="addRow()">إضافة سطر</button>
-                <button type="button" class="btn btn-sm btn-secondary" onclick="clearRows()">تفريغ</button>
+                <button class="btn btn-success" onclick="addRow()">إضافة سطر</button>
+                <!-- <button type="button" class="btn btn-sm btn-secondary" onclick="clearRows()">تفريغ</button> -->
+                <button class="btn btn-primary">حفظ الحالة</button>
               </div>
             </div>
-          </div>
-
-          <div class="col-12 text-end mt-3">
-            <button class="btn btn-primary">حفظ الحالة</button>
           </div>
         </div>
       </form>
@@ -324,12 +334,12 @@ function removeRow(btn){
   updateTotals();
 }
 
-function clearRows(){
-  const tbody = document.getElementById('treatmentBody');
-  tbody.innerHTML = '';
-  addRow();
-  updateTotals();
-}
+// function clearRows(){
+//   const tbody = document.getElementById('treatmentBody');
+//   tbody.innerHTML = '';
+//   addRow();
+//   updateTotals();
+// }
 
 function updateTotals(){
   let grandTotal = 0;
