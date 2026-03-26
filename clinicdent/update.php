@@ -15,6 +15,7 @@ if(($_SERVER['REQUEST_METHOD'] === 'POST') && isset($_POST['delete_id'])){
     // This file is now used by AJAX only
 }
 
+// THIS IS FOR EDIT AND SAVE DATA 
 $input = json_decode(file_get_contents("php://input"), true);
 if(isset($input['action']) && $input['action'] === 'edit'){
     $d = $input['data'];
@@ -33,3 +34,4 @@ if(isset($input['action']) && $input['action'] === 'edit'){
     echo json_encode(["success" => $success]);
     exit;
 }
+
